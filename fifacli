@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+set -u
+
+CONFIG_DIR="${HOME}/.config/wc-cli"
+CONFIG_FILE="${CONFIG_DIR}/config"
+
+FZF_COLORS='fg:#d4d4d4,bg:#1e1e2e,hl:#89b4fa,fg+:#cdd6f4,bg+:#313244,gutter:#1e1e2e,hl+:#89b4fa,info:#f5c2e7,prompt:#a6e3a1,pointer:#f38ba8,marker:#f38ba8,spinner:#f5c2e7,header:#89b4fa'
+
+check_deps() {
+    local missing=()
+    for cmd in fzf mpv yt-dlp; do
+        if ! command -v "$cmd" &>/dev/null; then
+            missing+=("$cmd")
+        fi
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "Missing required dependencies: ${missing[*]}" >&2
+        echo "Install with: sudo pacman -S ${missing[*]}" >&2
+        exit 1
+    fi
+    if ! command -v streamlink &>/dev/null; then
+        echo "Note: streamlink not found (optional fallback)" >&2
+    fi
+}
+
+init_config() {
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        mkdir -p "$CONFIG_DIR"
+        cat > "$CONFIG_FILE" <<-EOF
+QUALITY=best
+BBC_EMAIL=
+BBC_PASS=
+ITVX_EMAIL=
+ITVX_PASS=
+HTTP_PROXY=
+COOKIES_FILE=
+EOF
+        echo "Created default config at $CONFIG_FILE"
+    fi
+    source "$CONFIG_FILE"
+}
+
+header() {
+    clear
+cat <<'LOGOEOF'
+     _..._
+                                    .-'_..._''. .---.
+          .--.                    .' .'      '.\|   |.--.
+     _.._ |__|     _.._          / .'           |   ||__|
+   .' .._|.--.   .' .._|        . '             |   |.--.
+   | '    |  |   | '       __   | |             |   ||  |
+ __| |__  |  | __| |__  .:--.'. | |             |   ||  |
+|__   __| |  ||__   __|/ |   \ |. '             |   ||  |
+   | |    |  |   | |   `" __ | | \ '.          .|   ||  |
+   | |    |__|   | |    .'.''| |  '. `._____.-'/|   ||__|
+   | |           | |   / /   | |_   `-.______ / '---'
+   | |           | |   \ \._,\ '/            `
+   |_|           |_|    `--'  `"
+LOGOEOF
+    echo
+}
+
+SCHEDULE=(
+    "2026-06-11 16:00|Mexico vs South Africa|Group A|Estadio Azteca, Mexico City"
+    "2026-06-11 20:00|Portugal vs Congo DR|Group A|Estadio Akron, Guadalajara"
+    "2026-06-12 16:00|USMNT vs Paraguay|Group B|SoFi Stadium, Los Angeles"
+    "2026-06-12 20:00|Canada vs Qatar|Group B|BC Place, Vancouver"
+    "2026-06-13 14:00|Argentina vs Australia|Group C|Estadio Monumental, Lima"
+    "2026-06-13 20:00|Japan vs Nigeria|Group C|Estadio Nacional, Santiago"
+    "2026-06-14 14:00|France vs Senegal|Group D|MetLife Stadium, East Rutherford"
+    "2026-06-14 20:00|Netherlands vs South Korea|Group D|Gillette Stadium, Foxborough"
+    "2026-06-15 14:00|Spain vs Cape Verde|Group H|Estadio BBVA, Monterrey"
+    "2026-06-15 16:00|Belgium vs Egypt|Group G|Mercedes-Benz Stadium, Atlanta"
+    "2026-06-15 18:00|Saudi Arabia vs Uruguay|Group H|Estadio Universitario, Monterrey"
+    "2026-06-15 20:00|Iran vs New Zealand|Group G|NRG Stadium, Houston"
+    "2026-06-16 14:00|Germany vs Morocco|Group E|Olympiastadion, Berlin"
+    "2026-06-16 20:00|Brazil vs Cameroon|Group F|Maracana, Rio de Janeiro"
+    "2026-06-17 16:00|England vs Croatia|Group L|AT&T Stadium, Arlington"
+    "2026-06-17 20:00|Italy vs Serbia|Group L|SoFi Stadium, Los Angeles"
+    "2026-06-18 14:00|Switzerland vs Bosnia|Group I|Estadio Nacional, Santiago"
+    "2026-06-18 20:00|Czech Rep vs South Africa|Group I|Estadio Monumental, Lima"
+    "2026-06-19 14:00|Colombia vs Uzbekistan|Group J|Estadio Akron, Guadalajara"
+    "2026-06-19 20:00|Mexico vs Portugal|Group A|Estadio Azteca, Mexico City"
+    "2026-06-20 14:00|USMNT vs Canada|Group B|CenturyLink Field, Seattle"
+    "2026-06-20 20:00|Argentina vs Japan|Group C|Estadio Nacional, Santiago"
+    "2026-06-21 14:00|France vs Netherlands|Group D|MetLife Stadium, East Rutherford"
+    "2026-06-21 20:00|Germany vs Brazil|Group E|Olympiastadion, Berlin"
+    "2026-06-22 14:00|Spain vs Saudi Arabia|Group H|Estadio BBVA, Monterrey"
+    "2026-06-22 20:00|Belgium vs Iran|Group G|Mercedes-Benz Stadium, Atlanta"
+    "2026-06-23 16:00|England vs Ghana|Group L|Gillette Stadium, Foxborough"
+    "2026-06-23 20:00|Italy vs Croatia|Group L|AT&T Stadium, Arlington"
+    "2026-06-24 14:00|South Africa vs Uruguay|Group H|Estadio Universitario, Monterrey"
+    "2026-06-24 20:00|Egypt vs New Zealand|Group G|NRG Stadium, Houston"
+    "2026-06-25 14:00|Paraguay vs Qatar|Group B|BC Place, Vancouver"
+    "2026-06-25 20:00|Australia vs Nigeria|Group C|Estadio Monumental, Lima"
+    "2026-06-26 14:00|Senegal vs South Korea|Group D|Gillette Stadium, Foxborough"
+    "2026-06-26 20:00|Morocco vs Cameroon|Group E|Maracana, Rio de Janeiro"
+    "2026-06-27 16:00|England vs Panama|Group L|MetLife Stadium, East Rutherford"
+    "2026-06-27 20:00|Croatia vs Ghana|Group L|AT&T Stadium, Arlington"
+    "2026-06-28 16:00|Round of 32: Match 49|Round of 32|Estadio Azteca, Mexico City"
+    "2026-06-28 20:00|Round of 32: Match 50|Round of 32|SoFi Stadium, Los Angeles"
+    "2026-06-29 16:00|Round of 32: Match 51|Round of 32|MetLife Stadium, East Rutherford"
+    "2026-06-29 20:00|Round of 32: Match 52|Round of 32|Estadio BBVA, Monterrey"
+    "2026-06-30 16:00|Round of 32: Match 53|Round of 32|AT&T Stadium, Arlington"
+    "2026-06-30 20:00|Round of 32: Match 54|Round of 32|Mercedes-Benz Stadium, Atlanta"
+    "2026-07-01 16:00|Round of 32: Match 55|Round of 32|Olympiastadion, Berlin"
+    "2026-07-01 20:00|Round of 32: Match 56|Round of 32|Maracana, Rio de Janeiro"
+    "2026-07-04 16:00|Round of 16: Match 57|Round of 16|Estadio Azteca, Mexico City"
+    "2026-07-04 20:00|Round of 16: Match 58|Round of 16|SoFi Stadium, Los Angeles"
+    "2026-07-05 16:00|Round of 16: Match 59|Round of 16|MetLife Stadium, East Rutherford"
+    "2026-07-05 20:00|Round of 16: Match 60|Round of 16|AT&T Stadium, Arlington"
+    "2026-07-06 16:00|Round of 16: Match 61|Round of 16|Estadio BBVA, Monterrey"
+    "2026-07-06 20:00|Round of 16: Match 62|Round of 16|Mercedes-Benz Stadium, Atlanta"
+    "2026-07-07 16:00|Round of 16: Match 63|Round of 16|Olympiastadion, Berlin"
+    "2026-07-07 20:00|Round of 16: Match 64|Round of 16|Maracana, Rio de Janeiro"
+    "2026-07-09 16:00|Quarterfinal 1|Quarterfinal|Estadio Azteca, Mexico City"
+    "2026-07-09 20:00|Quarterfinal 2|Quarterfinal|SoFi Stadium, Los Angeles"
+    "2026-07-10 16:00|Quarterfinal 3|Quarterfinal|MetLife Stadium, East Rutherford"
+    "2026-07-10 20:00|Quarterfinal 4|Quarterfinal|AT&T Stadium, Arlington"
+    "2026-07-14 16:00|Semifinal 1|Semifinal|MetLife Stadium, East Rutherford"
+    "2026-07-15 16:00|Semifinal 2|Semifinal|AT&T Stadium, Arlington"
+    "2026-07-18 16:00|Third Place Playoff|Third Place|Estadio Azteca, Mexico City"
+    "2026-07-19 16:00|World Cup Final|Final|MetLife Stadium, East Rutherford"
+)
+
+date_to_epoch() {
+    local dt="$1"
+    local epoch
+    epoch=$(date -u -d "$dt" +%s 2>/dev/null) || epoch=$(date -u -j -f "%Y-%m-%d %H:%M" "$dt" +%s 2>/dev/null) || return 1
+    echo "$epoch"
+}
+
+now_epoch() {
+    date -u +%s 2>/dev/null || date +%s
+}
+
+find_matches() {
+    local now_e match_e dt match stage venue line live_list=() upcoming_list=()
+    now_e=$(now_epoch)
+
+    for line in "${SCHEDULE[@]}"; do
+        dt="${line%%|*}"
+        match_e=$(date_to_epoch "$dt") || continue
+
+        IFS='|' read -r _ match stage venue <<< "$line"
+
+        if [[ $now_e -ge $match_e && $now_e -le $((match_e + 8100)) ]]; then
+            local elapsed=$(( (now_e - match_e) / 60 ))
+            live_list+=("$elapsed|$match|$stage|$venue|$dt")
+        elif [[ $now_e -lt $match_e ]]; then
+            upcoming_list+=("$match_e|$match|$stage|$venue|$dt")
+        fi
+    done
+
+    if [[ ${#live_list[@]} -gt 0 ]]; then
+        printf 'live\n'
+        printf '%s\n' "${live_list[@]}"
+        return
+    fi
+
+    if [[ ${#upcoming_list[@]} -gt 0 ]]; then
+        local sorted upcoming_line
+        sorted=$(printf '%s\n' "${upcoming_list[@]}" | sort -n -t'|' -k1 | head -3)
+        printf 'upcoming\n'
+        echo "$sorted"
+    fi
+}
+
+show_match_status() {
+    local result match_info
+    result=$(find_matches)
+    local status
+    status=$(echo "$result" | head -1)
+    match_info=$(echo "$result" | tail -n +2)
+
+    if [[ "$status" == "live" ]]; then
+        echo "  >>> LIVE NOW <<<"
+        echo "$match_info" | while IFS='|' read -r elapsed match stage venue dt; do
+            printf "  %-35s %s ago | %s | %s\n" "$match" "${elapsed}m" "$stage" "$venue"
+        done
+    elif [[ "$status" == "upcoming" ]]; then
+        echo "  Upcoming Matches:"
+        echo "$match_info" | while IFS='|' read -r epoch match stage venue dt; do
+            local display
+            display=$(date -u -d "@$epoch" +"%a %b %d %H:%M UTC" 2>/dev/null || \
+                     date -u -r "$epoch" +"%a %b %d %H:%M UTC" 2>/dev/null)
+            printf "  %-35s %s | %s\n" "$match" "$display" "$venue"
+        done
+    fi
+}
+
+declare -A CHANNELS
+CHANNELS["UK BBC One (English)"]="https://www.bbc.co.uk/iplayer/live/bbcone"
+CHANNELS["UK ITV1 (English)"]="https://www.itv.com/watch/live/itv"
+CHANNELS["Brazil CazeTV (Portuguese)"]="https://www.youtube.com/@CazeTV/live"
+CHANNELS["France BFM (French)"]="https://www.bfmtv.com/en-direct/"
+CHANNELS["Germany ZDF (German)"]="https://www.zdf.de/live-tv"
+CHANNELS["Spain RTVE (Spanish)"]="https://www.rtve.es/play/en-directo/la-1/"
+
+play_ytdlp() {
+    local url="$1"
+    local quality="$2"
+    local extra_args=()
+
+    if [[ -n "${HTTP_PROXY:-}" ]]; then
+        extra_args+=(--proxy "${HTTP_PROXY}")
+    fi
+    if [[ -n "${COOKIES_FILE:-}" && -f "${COOKIES_FILE}" ]]; then
+        extra_args+=(--cookies "${COOKIES_FILE}")
+    fi
+    if [[ "$url" == *bbc.co.uk* ]] && [[ -n "${BBC_EMAIL:-}" ]]; then
+        extra_args+=(--username "${BBC_EMAIL}" --password "${BBC_PASS:-}")
+    fi
+    if [[ "$url" == *itv.com* ]] && [[ -n "${ITVX_EMAIL:-}" ]]; then
+        extra_args+=(--username "${ITVX_EMAIL}" --password "${ITVX_PASS:-}")
+    fi
+
+    yt-dlp -f "$quality" -o - "$url" "${extra_args[@]}" | mpv --no-terminal --geometry=50%:50% --autofit=800x450 -
+    return ${PIPESTATUS[0]}
+}
+
+play_streamlink() {
+    local url="$1"
+    local quality="$2"
+    local player="mpv --no-terminal --geometry=50%:50% --autofit=800x450"
+    local args=(streamlink "$url" "$quality" --player "$player")
+
+    if [[ "$url" == *bbc.co.uk* ]] && [[ -n "${BBC_EMAIL:-}" ]]; then
+        args+=(--bbciplayer-username "${BBC_EMAIL}" --bbciplayer-password "${BBC_PASS:-}")
+    fi
+    if [[ -n "${HTTP_PROXY:-}" ]]; then
+        args+=(--http-proxy "${HTTP_PROXY}")
+    fi
+
+    "${args[@]}"
+}
+
+play_url() {
+    local url="$1"
+    local quality="${2:-${QUALITY:-best}}"
+
+    if command -v yt-dlp &>/dev/null; then
+        play_ytdlp "$url" "$quality" && return 0
+        echo "yt-dlp failed, trying streamlink..."
+    fi
+
+    if command -v streamlink &>/dev/null; then
+        play_streamlink "$url" "$quality" && return 0
+    fi
+
+    echo "All backends failed for: $url"
+    return 1
+}
+
+lang_picker() {
+    local langs=(
+        "English (BBC One)"
+        "English (ITV1)"
+        "Português (CazeTV)"
+        "Français (BFM)"
+        "Deutsch (ZDF)"
+        "Español (RTVE)"
+        "Exit"
+    )
+    printf '%s\n' "${langs[@]}" | fzf \
+        --prompt="Select Language " \
+        --border=rounded \
+        --color="$FZF_COLORS" \
+        --height=10
+}
+
+main() {
+    check_deps
+    init_config
+
+    while true; do
+        header
+        show_match_status
+        echo
+
+        local pick
+        pick=$(lang_picker) || exit 0
+        [[ -z "$pick" ]] && exit 0
+
+        case "$pick" in
+            "Exit") exit 0 ;;
+        esac
+
+        local channel url
+        case "$pick" in
+            "English (BBC One)") channel="UK BBC One (English)" ;;
+            "English (ITV1)")    channel="UK ITV1 (English)" ;;
+            "Português (CazeTV)") channel="Brazil CazeTV (Portuguese)" ;;
+            "Français (BFM)")    channel="France BFM (French)" ;;
+            "Deutsch (ZDF)")     channel="Germany ZDF (German)" ;;
+            "Español (RTVE)")    channel="Spain RTVE (Spanish)" ;;
+        esac
+
+        url="${CHANNELS[$channel]}"
+        echo "Loading: $pick"
+        play_url "$url"
+        echo
+        read -rp "Press Enter..."
+    done
+}
+
+main "$@"
