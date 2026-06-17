@@ -60,68 +60,71 @@ LOGOEOF
     echo
 }
 
-SCHEDULE=(
-    "2026-06-11 16:00|Mexico vs South Africa|Group A|Estadio Azteca, Mexico City"
-    "2026-06-11 20:00|Portugal vs Congo DR|Group A|Estadio Akron, Guadalajara"
-    "2026-06-12 16:00|USMNT vs Paraguay|Group B|SoFi Stadium, Los Angeles"
-    "2026-06-12 20:00|Canada vs Qatar|Group B|BC Place, Vancouver"
-    "2026-06-13 14:00|Argentina vs Australia|Group C|Estadio Monumental, Lima"
-    "2026-06-13 20:00|Japan vs Nigeria|Group C|Estadio Nacional, Santiago"
-    "2026-06-14 14:00|France vs Senegal|Group D|MetLife Stadium, East Rutherford"
-    "2026-06-14 20:00|Netherlands vs South Korea|Group D|Gillette Stadium, Foxborough"
-    "2026-06-15 14:00|Spain vs Cape Verde|Group H|Estadio BBVA, Monterrey"
-    "2026-06-15 16:00|Belgium vs Egypt|Group G|Mercedes-Benz Stadium, Atlanta"
-    "2026-06-15 18:00|Saudi Arabia vs Uruguay|Group H|Estadio Universitario, Monterrey"
-    "2026-06-15 20:00|Iran vs New Zealand|Group G|NRG Stadium, Houston"
-    "2026-06-16 14:00|Germany vs Morocco|Group E|Olympiastadion, Berlin"
-    "2026-06-16 20:00|Brazil vs Cameroon|Group F|Maracana, Rio de Janeiro"
-    "2026-06-17 16:00|England vs Croatia|Group L|AT&T Stadium, Arlington"
-    "2026-06-17 20:00|Italy vs Serbia|Group L|SoFi Stadium, Los Angeles"
-    "2026-06-18 14:00|Switzerland vs Bosnia|Group I|Estadio Nacional, Santiago"
-    "2026-06-18 20:00|Czech Rep vs South Africa|Group I|Estadio Monumental, Lima"
-    "2026-06-19 14:00|Colombia vs Uzbekistan|Group J|Estadio Akron, Guadalajara"
-    "2026-06-19 20:00|Mexico vs Portugal|Group A|Estadio Azteca, Mexico City"
-    "2026-06-20 14:00|USMNT vs Canada|Group B|CenturyLink Field, Seattle"
-    "2026-06-20 20:00|Argentina vs Japan|Group C|Estadio Nacional, Santiago"
-    "2026-06-21 14:00|France vs Netherlands|Group D|MetLife Stadium, East Rutherford"
-    "2026-06-21 20:00|Germany vs Brazil|Group E|Olympiastadion, Berlin"
-    "2026-06-22 14:00|Spain vs Saudi Arabia|Group H|Estadio BBVA, Monterrey"
-    "2026-06-22 20:00|Belgium vs Iran|Group G|Mercedes-Benz Stadium, Atlanta"
-    "2026-06-23 16:00|England vs Ghana|Group L|Gillette Stadium, Foxborough"
-    "2026-06-23 20:00|Italy vs Croatia|Group L|AT&T Stadium, Arlington"
-    "2026-06-24 14:00|South Africa vs Uruguay|Group H|Estadio Universitario, Monterrey"
-    "2026-06-24 20:00|Egypt vs New Zealand|Group G|NRG Stadium, Houston"
-    "2026-06-25 14:00|Paraguay vs Qatar|Group B|BC Place, Vancouver"
-    "2026-06-25 20:00|Australia vs Nigeria|Group C|Estadio Monumental, Lima"
-    "2026-06-26 14:00|Senegal vs South Korea|Group D|Gillette Stadium, Foxborough"
-    "2026-06-26 20:00|Morocco vs Cameroon|Group E|Maracana, Rio de Janeiro"
-    "2026-06-27 16:00|England vs Panama|Group L|MetLife Stadium, East Rutherford"
-    "2026-06-27 20:00|Croatia vs Ghana|Group L|AT&T Stadium, Arlington"
-    "2026-06-28 16:00|Round of 32: Match 49|Round of 32|Estadio Azteca, Mexico City"
-    "2026-06-28 20:00|Round of 32: Match 50|Round of 32|SoFi Stadium, Los Angeles"
-    "2026-06-29 16:00|Round of 32: Match 51|Round of 32|MetLife Stadium, East Rutherford"
-    "2026-06-29 20:00|Round of 32: Match 52|Round of 32|Estadio BBVA, Monterrey"
-    "2026-06-30 16:00|Round of 32: Match 53|Round of 32|AT&T Stadium, Arlington"
-    "2026-06-30 20:00|Round of 32: Match 54|Round of 32|Mercedes-Benz Stadium, Atlanta"
-    "2026-07-01 16:00|Round of 32: Match 55|Round of 32|Olympiastadion, Berlin"
-    "2026-07-01 20:00|Round of 32: Match 56|Round of 32|Maracana, Rio de Janeiro"
-    "2026-07-04 16:00|Round of 16: Match 57|Round of 16|Estadio Azteca, Mexico City"
-    "2026-07-04 20:00|Round of 16: Match 58|Round of 16|SoFi Stadium, Los Angeles"
-    "2026-07-05 16:00|Round of 16: Match 59|Round of 16|MetLife Stadium, East Rutherford"
-    "2026-07-05 20:00|Round of 16: Match 60|Round of 16|AT&T Stadium, Arlington"
-    "2026-07-06 16:00|Round of 16: Match 61|Round of 16|Estadio BBVA, Monterrey"
-    "2026-07-06 20:00|Round of 16: Match 62|Round of 16|Mercedes-Benz Stadium, Atlanta"
-    "2026-07-07 16:00|Round of 16: Match 63|Round of 16|Olympiastadion, Berlin"
-    "2026-07-07 20:00|Round of 16: Match 64|Round of 16|Maracana, Rio de Janeiro"
-    "2026-07-09 16:00|Quarterfinal 1|Quarterfinal|Estadio Azteca, Mexico City"
-    "2026-07-09 20:00|Quarterfinal 2|Quarterfinal|SoFi Stadium, Los Angeles"
-    "2026-07-10 16:00|Quarterfinal 3|Quarterfinal|MetLife Stadium, East Rutherford"
-    "2026-07-10 20:00|Quarterfinal 4|Quarterfinal|AT&T Stadium, Arlington"
-    "2026-07-14 16:00|Semifinal 1|Semifinal|MetLife Stadium, East Rutherford"
-    "2026-07-15 16:00|Semifinal 2|Semifinal|AT&T Stadium, Arlington"
-    "2026-07-18 16:00|Third Place Playoff|Third Place|Estadio Azteca, Mexico City"
-    "2026-07-19 16:00|World Cup Final|Final|MetLife Stadium, East Rutherford"
-)
+build_schedule() {
+    declare -Ag G
+    G["A"]="Mexico|Korea Republic|Czechia|South Africa"
+    G["B"]="Canada|Bosnia and Herzegovina|Qatar|Switzerland"
+    G["C"]="Brazil|Haiti|Scotland|Morocco"
+    G["D"]="USA|Paraguay|Australia|Turkiye"
+    G["E"]="Germany|Cote dIvoire|Ecuador|Curacao"
+    G["F"]="Netherlands|Sweden|Tunisia|Japan"
+    G["G"]="Belgium|Egypt|Iran|New Zealand"
+    G["H"]="Spain|Cape Verde|Saudi Arabia|Uruguay"
+    G["I"]="France|Senegal|Iraq|Norway"
+    G["J"]="Argentina|Algeria|Austria|Jordan"
+    G["K"]="Portugal|Congo DR|Uzbekistan|Colombia"
+    G["L"]="England|Croatia|Ghana|Panama"
+
+    local md1_dates=("2026-06-11" "2026-06-12" "2026-06-12" "2026-06-13" "2026-06-13" "2026-06-14" "2026-06-14" "2026-06-15" "2026-06-15" "2026-06-16" "2026-06-16" "2026-06-17")
+    local md2_dates=("2026-06-18" "2026-06-18" "2026-06-19" "2026-06-19" "2026-06-20" "2026-06-20" "2026-06-21" "2026-06-21" "2026-06-22" "2026-06-22" "2026-06-23" "2026-06-23")
+    local md3_dates=("2026-06-25" "2026-06-25" "2026-06-26" "2026-06-26" "2026-06-26" "2026-06-26" "2026-06-27" "2026-06-27" "2026-06-27" "2026-06-27" "2026-06-27" "2026-06-27")
+    local times=("01:00" "23:00")
+    local vpool=("Mexico City" "Guadalajara" "Toronto" "Vancouver" "Los Angeles" "San Francisco" "New Jersey" "Boston" "Dallas" "Houston" "Atlanta" "Miami" "Seattle" "Kansas City" "Philadelphia" "Monterrey")
+
+    local idx=0 group schedule=()
+    for group in A B C D E F G H I J K L; do
+        IFS='|' read -r t1 t2 t3 t4 <<< "${G[$group]}"
+        local d1="${md1_dates[$idx]}" d2="${md2_dates[$idx]}" d3="${md3_dates[$idx]}"
+        local v1="${vpool[idx * 2 % 16]}" v2="${vpool[(idx * 2 + 1) % 16]}"
+        local v3="${vpool[(idx * 2 + 4) % 16]}" v4="${vpool[(idx * 2 + 5) % 16]}"
+        schedule+=("$d1 ${times[0]}|$t1 vs $t4|Group $group|${v1} Stadium")
+        schedule+=("$d1 ${times[1]}|$t2 vs $t3|Group $group|${v2} Stadium")
+        schedule+=("$d2 ${times[0]}|$t1 vs $t3|Group $group|${v3} Stadium")
+        schedule+=("$d2 ${times[1]}|$t4 vs $t2|Group $group|${v4} Stadium")
+        schedule+=("$d3 ${times[0]}|$t1 vs $t2|Group $group|${v1} Stadium")
+        schedule+=("$d3 ${times[1]}|$t4 vs $t3|Group $group|${v2} Stadium")
+        idx=$((idx + 1))
+    done
+
+    local r32_dates=("2026-06-28" "2026-06-29" "2026-06-30" "2026-07-01" "2026-07-01" "2026-07-02" "2026-07-02" "2026-07-03")
+    local r32_times=("23:00" "01:00")
+    for i in $(seq 0 7); do
+        schedule+=("${r32_dates[$i]} ${r32_times[0]}|Round of 32: Match $((i*2+1))|Round of 32|Stadium TBD")
+        schedule+=("${r32_dates[$i]} ${r32_times[1]}|Round of 32: Match $((i*2+2))|Round of 32|Stadium TBD")
+    done
+
+    local r16_dates=("2026-07-04" "2026-07-05" "2026-07-06" "2026-07-07")
+    for i in $(seq 0 3); do
+        schedule+=("${r16_dates[$i]} ${r32_times[0]}|Round of 16: Match $((i*2+1))|Round of 16|Stadium TBD")
+        schedule+=("${r16_dates[$i]} ${r32_times[1]}|Round of 16: Match $((i*2+2))|Round of 16|Stadium TBD")
+    done
+
+    schedule+=("2026-07-09 23:00|Quarterfinal 1|Quarterfinal|Stadium TBD")
+    schedule+=("2026-07-10 23:00|Quarterfinal 2|Quarterfinal|Stadium TBD")
+    schedule+=("2026-07-11 23:00|Quarterfinal 3|Quarterfinal|Stadium TBD")
+    schedule+=("2026-07-12 23:00|Quarterfinal 4|Quarterfinal|Stadium TBD")
+    schedule+=("2026-07-14 23:00|Semifinal 1|Semifinal|New Jersey Stadium")
+    schedule+=("2026-07-15 23:00|Semifinal 2|Semifinal|Dallas Stadium")
+    schedule+=("2026-07-18 21:00|Third Place Playoff|Third Place|Mexico City Stadium")
+    schedule+=("2026-07-19 22:00|World Cup Final|Final|New Jersey Stadium")
+
+    printf '%s\n' "${schedule[@]}"
+}
+
+SCHEDULE=()
+while IFS= read -r line; do
+    SCHEDULE+=("$line")
+done < <(build_schedule)
 
 date_to_epoch() {
     local dt="$1"
@@ -191,10 +194,10 @@ show_match_status() {
 
 declare -A CHANNELS
 CHANNELS["UK BBC One (English)"]="https://www.bbc.co.uk/iplayer/live/bbcone"
-CHANNELS["UK ITV1 (English)"]="https://www.itv.com/watch/live/itv"
+CHANNELS["UK ITV1 (English)"]="https://www.itv.com/watch/live/itv1"
 CHANNELS["Brazil CazeTV (Portuguese)"]="https://www.youtube.com/@CazeTV/live"
 CHANNELS["France BFM (French)"]="https://www.bfmtv.com/en-direct/"
-CHANNELS["Germany ZDF (German)"]="https://www.zdf.de/live-tv"
+CHANNELS["Germany ZDF (German)"]="https://www.zdf.de/live-tv/zdf"
 CHANNELS["Spain RTVE (Spanish)"]="https://www.rtve.es/play/en-directo/la-1/"
 
 play_ytdlp() {
@@ -215,8 +218,30 @@ play_ytdlp() {
         extra_args+=(--username "${ITVX_EMAIL}" --password "${ITVX_PASS:-}")
     fi
 
-    yt-dlp -f "$quality" -o - "$url" "${extra_args[@]}" | mpv --no-terminal --geometry=50%:50% --autofit=800x450 -
-    return ${PIPESTATUS[0]}
+    local fmt_args=()
+    [[ "$quality" != "best" ]] && fmt_args=(-f "$quality")
+    yt-dlp "${fmt_args[@]}" -o - "$url" "${extra_args[@]}" 2>/tmp/fifacli_ytdlp_err | mpv --no-terminal --geometry=50%:50% --autofit=800x450 -
+    local ret=${PIPESTATUS[0]}
+
+    if [[ $ret -ne 0 && -f /tmp/fifacli_ytdlp_err ]]; then
+        local err
+        err=$(</tmp/fifacli_ytdlp_err)
+        if [[ "$err" == *"not currently live"* ]]; then
+            echo "Channel is not currently live."
+        elif [[ "$err" == *"Unable to extract"* || "$err" == *"Failed to extract"* ]]; then
+            echo "Stream extraction failed (upstream issue)."
+        elif [[ "$err" == *"HTTP Error 404"* ]]; then
+            echo "URL not found — the stream URL may have changed."
+        elif [[ "$err" == *"requires an account"* || "$err" == *"Login required"* ]]; then
+            echo "Login required — set credentials in config."
+        elif [[ "$err" == *"403"* || "$err" == *"Geoblock"* || "$err" == *"geo"* ]]; then
+            echo "Geo-blocked — this channel is not available in your region."
+        elif [[ "$err" == *"Downloading 0 items"* || "$err" == *"0 items"* ]]; then
+            echo "No live stream found on this channel."
+        fi
+        rm -f /tmp/fifacli_ytdlp_err
+    fi
+    return $ret
 }
 
 play_streamlink() {
@@ -232,23 +257,46 @@ play_streamlink() {
         args+=(--http-proxy "${HTTP_PROXY}")
     fi
 
-    "${args[@]}"
+    "${args[@]}" 2>/tmp/fifacli_slink_err
+    local ret=$?
+    if [[ $ret -ne 0 && -f /tmp/fifacli_slink_err ]]; then
+        local err
+        err=$(</tmp/fifacli_slink_err)
+        if [[ "$err" == *"requires an account"* ]]; then
+            echo "Login required — set credentials in config."
+        elif [[ "$err" == *"No playable streams"* ]]; then
+            echo "No stream available — channel may be offline."
+        fi
+        rm -f /tmp/fifacli_slink_err
+    fi
+    return $ret
 }
 
 play_url() {
     local url="$1"
     local quality="${2:-${QUALITY:-best}}"
+    local channel_type=""
+
+    if [[ "$url" == *youtube.com* || "$url" == *youtu.be* ]]; then
+        channel_type="YouTube"
+    elif [[ "$url" == *bbc.co* ]]; then
+        channel_type="BBC"
+    elif [[ "$url" == *itv.com* ]]; then
+        channel_type="ITV"
+    fi
 
     if command -v yt-dlp &>/dev/null; then
         play_ytdlp "$url" "$quality" && return 0
-        echo "yt-dlp failed, trying streamlink..."
+        if [[ "$channel_type" == "YouTube" ]]; then
+            return 1
+        fi
+        echo "Trying streamlink..."
     fi
 
     if command -v streamlink &>/dev/null; then
         play_streamlink "$url" "$quality" && return 0
     fi
 
-    echo "All backends failed for: $url"
     return 1
 }
 
