@@ -1,105 +1,124 @@
 #!/usr/bin/env bash
 set -u
 
-FZF_COLORS='fg:#d4d4d4,bg:#1e1e2e,hl:#89b4fa,fg+:#cdd6f4,bg+:#313244,gutter:#1e1e2e,hl+:#89b4fa,info:#f5c2e7,prompt:#a6e3a1,pointer:#f38ba8,marker:#f38ba8,spinner:#f5c2e7,header:#89b4fa'
-
-check_deps() {
-    local missing=()
-    for cmd in fzf ffmpeg; do
-        if ! command -v "$cmd" &>/dev/null; then
-            missing+=("$cmd")
-        fi
-    done
-    [[ ${#missing[@]} -eq 0 ]] && return
-    echo "Missing: ${missing[*]}" >&2
-    echo "Install: sudo pacman -S ${missing[*]}" >&2
-    exit 1
-}
-
-SERVERS=(
-    "Server 1 (msdht)"       "https://live05.msdht.app/live/14830711.m3u8"
-    "Server 2 (s3-eu-west)"  "https://5cup.s3.us-east-2.amazonaws.com/max1/master.m3u8"
-    "Server 3 (s3-us-east)"  "https://s3.us-east-1.amazonaws.com/cdnh120/hls/0/stream.m3u8"
-    "Server 4 (cloudfront)"  "https://d2zihajmogu5jn.cloudfront.net/elephantsdream/hls/manifest5/index.m3u8"
-    "Server 5 (msdht-alt)"   "https://live05.msdht.app/live/14830711.m3u8"
-    "Server 6 (s3-alt)"      "https://5cup.s3.us-east-2.amazonaws.com/max1/master.m3u8"
-    "Server 7 (s3-alt2)"     "https://s3.us-east-1.amazonaws.com/cdnh120/hls/0/stream.m3u8"
-    "Server 8 (msdht-2)"     "https://live05.msdht.app/live/14830711.m3u8"
-    "Server 9 (s3-eu-2)"     "https://5cup.s3.us-east-2.amazonaws.com/max1/master.m3u8"
-    "Server 10 (msdht-3)"    "https://live05.msdht.app/live/14830711.m3u8"
-    "Scrape (auto-find)"     "__scrape__"
+STREAMS=(
+    "https://live05.msdht.app/live/14830711.m3u8"
+    "https://5cup.s3.us-east-2.amazonaws.com/max1/master.m3u8"
+    "https://s3.us-east-1.amazonaws.com/cdnh120/hls/0/stream.m3u8"
+    "https://d2zihajmogu5jn.cloudfront.net/elephantsdream/hls/manifest5/index.m3u8"
 )
 
-play_ffplay() {
-    local url="$1"
-    echo "Stream: $url"
-    echo "Controls: q=quit  f=fullscreen  m=mute  0-9=volume"
+UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+
+pick_player() {
     if command -v mpv &>/dev/null; then
-        mpv --no-terminal --volume=100 --cache=yes --demuxer-max-bytes=150M \
-            --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-            "$url"
-        return $?
+        echo "mpv"
+    elif command -v ffplay &>/dev/null; then
+        echo "ffplay"
+    elif command -v cvlc &>/dev/null; then
+        echo "cvlc"
+    else
+        echo ""
     fi
+}
+
+AUDIO_DEVICE="pipewire/alsa_output.pci-0000_00_1f.3.analog-stereo"
+
+play_mpv() {
+    mpv --no-terminal --volume=100 --af=volume=20dB --cache=yes \
+        --audio-device="$AUDIO_DEVICE" \
+        --demuxer-max-bytes=150M \
+        --timeout=20 --hls-segment-timeout=20 \
+        --user-agent="$UA" "$1"
+}
+
+play_ffplay() {
+    PULSE_SINK="alsa_output.pci-0000_00_1f.3.analog-stereo" \
     ffplay -loglevel warning -fflags nobuffer -flags low_delay -framedrop \
         -infbuf -analyzeduration 0 -probesize 32 -volume 100 \
-        -user_agent "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
-        "$url"
+        -af "volume=10.0" -user_agent "$UA" "$1"
 }
 
-server_picker() {
-    local i pick
-    local items=()
-    for ((i=0; i<${#SERVERS[@]}; i+=2)); do
-        items+=("${SERVERS[i]}")
-    done
-    printf '%s\n' "${items[@]}" "Exit" | fzf \
-        --prompt="Select Server " \
-        --border=rounded \
-        --color="$FZF_COLORS" \
-        --height=15
+play_cvlc() {
+    PULSE_SINK="alsa_output.pci-0000_00_1f.3.analog-stereo" \
+    cvlc --no-video-title-show --volume 512 --audio-filter=compressor "$1"
 }
 
-play_scrape() {
-    local scrape_dir
-    scrape_dir="$(dirname "$0")/scrapers"
-    local venv_python="${scrape_dir}/venv/bin/python3"
-    local scraper="${scrape_dir}/extract_stream.py"
-    if [[ ! -f "$venv_python" ]] || [[ ! -f "$scraper" ]]; then
-        echo "Scraper not found. Run setup from README." >&2
-        return 1
-    fi
-    echo "Scraping for live streams..."
-    local result
-    result=$("$venv_python" "$scraper" "https://www.goatsports.xyz/p/why-is-maradonas-goal-called-hand-of.html" --timeout 25 2>&1)
-    if [[ "$result" == ERROR:* ]]; then
-        echo "$result" >&2
-        return 1
-    fi
-    echo "Found: $result"
-    play_ffplay "$result"
+play_stream() {
+    local url="$1" player
+    player=$(pick_player)
+    [[ -z "$player" ]] && { echo "No player found (install mpv, ffmpeg, or vlc)"; return 1; }
+    case "$player" in
+        mpv)   play_mpv "$url"   ;;
+        ffplay) play_ffplay "$url" ;;
+        cvlc)  play_cvlc "$url"  ;;
+    esac
 }
 
-play_url() {
-    local url="$1"
-    if [[ "$url" == "__scrape__" ]]; then
-        play_scrape
-        return $?
-    fi
-    play_ffplay "$url"
+check_stream() {
+    local code
+    code=$(curl -sI --max-time 5 -o /dev/null -w "%{http_code}" -H "User-Agent: $UA" "$1" 2>/dev/null)
+    [[ "$code" == "200" ]]
 }
 
 main() {
-    check_deps
-    while true; do
-        local pick
-        pick=$(server_picker) || exit 0
-        [[ -z "$pick" || "$pick" == "Exit" ]] && exit 0
-        local url idx=0
-        for ((idx=0; idx<${#SERVERS[@]}; idx+=2)); do
-            [[ "${SERVERS[idx]}" == "$pick" ]] && { url="${SERVERS[idx+1]}"; break; }
-        done
-        play_url "$url"
+    for cmd in fzf curl; do
+        if ! command -v "$cmd" &>/dev/null; then
+            echo "Missing: $cmd. Install with: sudo pacman -S $cmd" >&2
+            exit 1
+        fi
     done
+
+    if [[ "$(pick_player)" == "" ]]; then
+        echo "No media player found. Install mpv, ffmpeg, or vlc" >&2
+        exit 1
+    fi
+
+    local choice
+    printf "\n"
+    echo "______   __     ______   ______     ______     __         __    "
+    echo "/\  ___\ /\ \   /\  ___\ /\  __ \   /\  ___\   /\ \       /\ \   "
+    echo "\ \  __\ \ \ \  \ \  __\ \ \  __ \  \ \ \____  \ \ \____  \ \ \  "
+    echo " \ \_\    \ \_\  \ \_\    \ \_\ \_\  \ \_____\  \ \_____\  \ \_\ "
+    echo "  \/_/     \/_/   \/_/     \/_/\/_/   \/_____/   \/_____/   \/_/ "
+    printf "\n"
+    choice=$(printf "Start Stream\nScrape (auto-find)\nExit" | fzf \
+        --prompt="Select " --border=rounded --height=8)
+
+    [[ -z "$choice" || "$choice" == "Exit" ]] && exit 0
+
+    if [[ "$choice" == "Scrape (auto-find)" ]]; then
+        local sd="$(dirname "$0")/scrapers"
+        local py="${sd}/venv/bin/python3" scr="${sd}/extract_stream.py"
+        if [[ ! -f "$py" || ! -f "$scr" ]]; then
+            echo "Scraper not found. Run setup from README." >&2
+            exit 1
+        fi
+        echo "Searching for streams..."
+        local result
+        result=$("$py" "$scr" "https://www.goatsports.xyz/p/why-is-maradonas-goal-called-hand-of.html" --timeout 25 2>&1)
+        if [[ "$result" == ERROR:* ]]; then
+            echo "$result" >&2
+            exit 1
+        fi
+        play_stream "$result"
+        exit $?
+    fi
+
+    local tried=0
+    for url in "${STREAMS[@]}"; do
+        echo -n "Trying $(echo "$url" | sed 's|https://||;s|/.*||')... "
+        if check_stream "$url"; then
+            echo "alive"
+            play_stream "$url" && exit 0
+            tried=$((tried + 1))
+        else
+            echo "dead"
+        fi
+    done
+
+    echo "All streams failed."
+    exit 1
 }
 
 main "$@"
