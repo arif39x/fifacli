@@ -1,387 +1,104 @@
 #!/usr/bin/env bash
 set -u
 
-CONFIG_DIR="${HOME}/.config/wc-cli"
-CONFIG_FILE="${CONFIG_DIR}/config"
-
 FZF_COLORS='fg:#d4d4d4,bg:#1e1e2e,hl:#89b4fa,fg+:#cdd6f4,bg+:#313244,gutter:#1e1e2e,hl+:#89b4fa,info:#f5c2e7,prompt:#a6e3a1,pointer:#f38ba8,marker:#f38ba8,spinner:#f5c2e7,header:#89b4fa'
 
 check_deps() {
     local missing=()
-    for cmd in fzf mpv yt-dlp; do
+    for cmd in fzf ffmpeg; do
         if ! command -v "$cmd" &>/dev/null; then
             missing+=("$cmd")
         fi
     done
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "Missing required dependencies: ${missing[*]}" >&2
-        echo "Install with: sudo pacman -S ${missing[*]}" >&2
-        exit 1
-    fi
-    if ! command -v streamlink &>/dev/null; then
-        echo "Note: streamlink not found (optional fallback)" >&2
-    fi
+    [[ ${#missing[@]} -eq 0 ]] && return
+    echo "Missing: ${missing[*]}" >&2
+    echo "Install: sudo pacman -S ${missing[*]}" >&2
+    exit 1
 }
 
-init_config() {
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        mkdir -p "$CONFIG_DIR"
-        cat > "$CONFIG_FILE" <<-EOF
-QUALITY=best
-HTTP_PROXY=
-COOKIES_FILE=
-SCRAPE_BASE_URL=https://www.trickscorner.xyz
-EOF
-        echo "Created default config at $CONFIG_FILE"
-    fi
-    source "$CONFIG_FILE"
-}
+SERVERS=(
+    "Server 1 (msdht)"       "https://live05.msdht.app/live/14830711.m3u8"
+    "Server 2 (s3-eu-west)"  "https://5cup.s3.us-east-2.amazonaws.com/max1/master.m3u8"
+    "Server 3 (s3-us-east)"  "https://s3.us-east-1.amazonaws.com/cdnh120/hls/0/stream.m3u8"
+    "Server 4 (cloudfront)"  "https://d2zihajmogu5jn.cloudfront.net/elephantsdream/hls/manifest5/index.m3u8"
+    "Server 5 (msdht-alt)"   "https://live05.msdht.app/live/14830711.m3u8"
+    "Server 6 (s3-alt)"      "https://5cup.s3.us-east-2.amazonaws.com/max1/master.m3u8"
+    "Server 7 (s3-alt2)"     "https://s3.us-east-1.amazonaws.com/cdnh120/hls/0/stream.m3u8"
+    "Server 8 (msdht-2)"     "https://live05.msdht.app/live/14830711.m3u8"
+    "Server 9 (s3-eu-2)"     "https://5cup.s3.us-east-2.amazonaws.com/max1/master.m3u8"
+    "Server 10 (msdht-3)"    "https://live05.msdht.app/live/14830711.m3u8"
+    "Scrape (auto-find)"     "__scrape__"
+)
 
-header() {
-    clear
-cat <<'LOGOEOF'
-     _..._
-                                    .-'_..._''. .---.
-          .--.                    .' .'      '.\|   |.--.
-     _.._ |__|     _.._          / .'           |   ||__|
-   .' .._|.--.   .' .._|        . '             |   |.--.
-   | '    |  |   | '       __   | |             |   ||  |
- __| |__  |  | __| |__  .:--.'. | |             |   ||  |
-|__   __| |  ||__   __|/ |   \ |. '             |   ||  |
-   | |    |  |   | |   `" __ | | \ '.          .|   ||  |
-   | |    |__|   | |    .'.''| |  '. `._____.-'/|   ||__|
-   | |           | |   / /   | |_   `-.______ / '---'
-   | |           | |   \ \._,\ '/            `
-   |_|           |_|    `--'  `"
-LOGOEOF
-    echo
-}
-
-build_schedule() {
-    declare -Ag G
-    G["A"]="Mexico|Korea Republic|Czechia|South Africa"
-    G["B"]="Canada|Bosnia and Herzegovina|Qatar|Switzerland"
-    G["C"]="Brazil|Haiti|Scotland|Morocco"
-    G["D"]="USA|Paraguay|Australia|Turkiye"
-    G["E"]="Germany|Cote dIvoire|Ecuador|Curacao"
-    G["F"]="Netherlands|Sweden|Tunisia|Japan"
-    G["G"]="Belgium|Egypt|Iran|New Zealand"
-    G["H"]="Spain|Cape Verde|Saudi Arabia|Uruguay"
-    G["I"]="France|Senegal|Iraq|Norway"
-    G["J"]="Argentina|Algeria|Austria|Jordan"
-    G["K"]="Portugal|Congo DR|Uzbekistan|Colombia"
-    G["L"]="England|Croatia|Ghana|Panama"
-
-    local md1_dates=("2026-06-11" "2026-06-12" "2026-06-12" "2026-06-13" "2026-06-13" "2026-06-14" "2026-06-14" "2026-06-15" "2026-06-15" "2026-06-16" "2026-06-16" "2026-06-17")
-    local md2_dates=("2026-06-18" "2026-06-18" "2026-06-19" "2026-06-19" "2026-06-20" "2026-06-20" "2026-06-21" "2026-06-21" "2026-06-22" "2026-06-22" "2026-06-23" "2026-06-23")
-    local md3_dates=("2026-06-25" "2026-06-25" "2026-06-26" "2026-06-26" "2026-06-26" "2026-06-26" "2026-06-27" "2026-06-27" "2026-06-27" "2026-06-27" "2026-06-27" "2026-06-27")
-    local times=("01:00" "23:00")
-    local vpool=("Mexico City" "Guadalajara" "Toronto" "Vancouver" "Los Angeles" "San Francisco" "New Jersey" "Boston" "Dallas" "Houston" "Atlanta" "Miami" "Seattle" "Kansas City" "Philadelphia" "Monterrey")
-
-    local idx=0 group schedule=()
-    for group in A B C D E F G H I J K L; do
-        IFS='|' read -r t1 t2 t3 t4 <<< "${G[$group]}"
-        local d1="${md1_dates[$idx]}" d2="${md2_dates[$idx]}" d3="${md3_dates[$idx]}"
-        local v1="${vpool[idx * 2 % 16]}" v2="${vpool[(idx * 2 + 1) % 16]}"
-        local v3="${vpool[(idx * 2 + 4) % 16]}" v4="${vpool[(idx * 2 + 5) % 16]}"
-        schedule+=("$d1 ${times[0]}|$t1 vs $t4|Group $group|${v1} Stadium")
-        schedule+=("$d1 ${times[1]}|$t2 vs $t3|Group $group|${v2} Stadium")
-        schedule+=("$d2 ${times[0]}|$t1 vs $t3|Group $group|${v3} Stadium")
-        schedule+=("$d2 ${times[1]}|$t4 vs $t2|Group $group|${v4} Stadium")
-        schedule+=("$d3 ${times[0]}|$t1 vs $t2|Group $group|${v1} Stadium")
-        schedule+=("$d3 ${times[1]}|$t4 vs $t3|Group $group|${v2} Stadium")
-        idx=$((idx + 1))
-    done
-
-    local r32_dates=("2026-06-28" "2026-06-29" "2026-06-30" "2026-07-01" "2026-07-01" "2026-07-02" "2026-07-02" "2026-07-03")
-    local r32_times=("23:00" "01:00")
-    for i in $(seq 0 7); do
-        schedule+=("${r32_dates[$i]} ${r32_times[0]}|Round of 32: Match $((i*2+1))|Round of 32|Stadium TBD")
-        schedule+=("${r32_dates[$i]} ${r32_times[1]}|Round of 32: Match $((i*2+2))|Round of 32|Stadium TBD")
-    done
-
-    local r16_dates=("2026-07-04" "2026-07-05" "2026-07-06" "2026-07-07")
-    for i in $(seq 0 3); do
-        schedule+=("${r16_dates[$i]} ${r32_times[0]}|Round of 16: Match $((i*2+1))|Round of 16|Stadium TBD")
-        schedule+=("${r16_dates[$i]} ${r32_times[1]}|Round of 16: Match $((i*2+2))|Round of 16|Stadium TBD")
-    done
-
-    schedule+=("2026-07-09 23:00|Quarterfinal 1|Quarterfinal|Stadium TBD")
-    schedule+=("2026-07-10 23:00|Quarterfinal 2|Quarterfinal|Stadium TBD")
-    schedule+=("2026-07-11 23:00|Quarterfinal 3|Quarterfinal|Stadium TBD")
-    schedule+=("2026-07-12 23:00|Quarterfinal 4|Quarterfinal|Stadium TBD")
-    schedule+=("2026-07-14 23:00|Semifinal 1|Semifinal|New Jersey Stadium")
-    schedule+=("2026-07-15 23:00|Semifinal 2|Semifinal|Dallas Stadium")
-    schedule+=("2026-07-18 21:00|Third Place Playoff|Third Place|Mexico City Stadium")
-    schedule+=("2026-07-19 22:00|World Cup Final|Final|New Jersey Stadium")
-
-    printf '%s\n' "${schedule[@]}"
-}
-
-SCHEDULE=()
-while IFS= read -r line; do
-    SCHEDULE+=("$line")
-done < <(build_schedule)
-
-date_to_epoch() {
-    local dt="$1"
-    local epoch
-    epoch=$(date -u -d "$dt" +%s 2>/dev/null) || epoch=$(date -u -j -f "%Y-%m-%d %H:%M" "$dt" +%s 2>/dev/null) || return 1
-    echo "$epoch"
-}
-
-now_epoch() {
-    date -u +%s 2>/dev/null || date +%s
-}
-
-find_matches() {
-    local now_e match_e dt match stage venue line live_list=() upcoming_list=()
-    now_e=$(now_epoch)
-
-    for line in "${SCHEDULE[@]}"; do
-        dt="${line%%|*}"
-        match_e=$(date_to_epoch "$dt") || continue
-
-        IFS='|' read -r _ match stage venue <<< "$line"
-
-        if [[ $now_e -ge $match_e && $now_e -le $((match_e + 8100)) ]]; then
-            local elapsed=$(( (now_e - match_e) / 60 ))
-            live_list+=("$elapsed|$match|$stage|$venue|$dt")
-        elif [[ $now_e -lt $match_e ]]; then
-            upcoming_list+=("$match_e|$match|$stage|$venue|$dt")
-        fi
-    done
-
-    if [[ ${#live_list[@]} -gt 0 ]]; then
-        printf 'live\n'
-        printf '%s\n' "${live_list[@]}"
-        return
-    fi
-
-    if [[ ${#upcoming_list[@]} -gt 0 ]]; then
-        local sorted upcoming_line
-        sorted=$(printf '%s\n' "${upcoming_list[@]}" | sort -n -t'|' -k1 | head -3)
-        printf 'upcoming\n'
-        echo "$sorted"
-    fi
-}
-
-show_match_status() {
-    local result match_info
-    result=$(find_matches)
-    local status
-    status=$(echo "$result" | head -1)
-    match_info=$(echo "$result" | tail -n +2)
-
-    if [[ "$status" == "live" ]]; then
-        echo "  >>> LIVE NOW <<<"
-        echo "$match_info" | while IFS='|' read -r elapsed match stage venue dt; do
-            printf "  %-35s %s ago | %s | %s\n" "$match" "${elapsed}m" "$stage" "$venue"
-        done
-    elif [[ "$status" == "upcoming" ]]; then
-        echo "  Upcoming Matches:"
-        echo "$match_info" | while IFS='|' read -r epoch match stage venue dt; do
-            local display
-            display=$(date -u -d "@$epoch" +"%a %b %d %H:%M UTC" 2>/dev/null || \
-                     date -u -r "$epoch" +"%a %b %d %H:%M UTC" 2>/dev/null)
-            printf "  %-35s %s | %s\n" "$match" "$display" "$venue"
-        done
-    fi
-}
-
-declare -A CHANNELS
-CHANNELS["Brazil CazeTV (Portuguese)"]="https://www.youtube.com/@CazeTV/live"
-CHANNELS["France BFM (French)"]="https://www.bfmtv.com/en-direct/"
-CHANNELS["Germany ZDF (German)"]="https://www.zdf.de/live-tv/zdf"
-CHANNELS["Spain RTVE (Spanish)"]="https://www.rtve.es/play/en-directo/la-1/"
-CHANNELS["Stream (scrape)"]="__scrape__"
-
-play_ytdlp() {
+play_ffplay() {
     local url="$1"
-    local quality="$2"
-    local extra_args=()
-
-    if [[ -n "${HTTP_PROXY:-}" ]]; then
-        extra_args+=(--proxy "${HTTP_PROXY}")
+    echo "Stream: $url"
+    echo "Controls: q=quit  f=fullscreen  m=mute  0-9=volume"
+    if command -v mpv &>/dev/null; then
+        mpv --no-terminal --volume=100 --cache=yes --demuxer-max-bytes=150M \
+            --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
+            "$url"
+        return $?
     fi
-    if [[ -n "${COOKIES_FILE:-}" && -f "${COOKIES_FILE}" ]]; then
-        extra_args+=(--cookies "${COOKIES_FILE}")
-    fi
-
-    local fmt_args=()
-    [[ "$quality" != "best" ]] && fmt_args=(-f "$quality")
-    yt-dlp "${fmt_args[@]}" -o - "$url" "${extra_args[@]}" 2>/tmp/fifacli_ytdlp_err | mpv --no-terminal --geometry=50%:50% --autofit=800x450 -
-    local ret=${PIPESTATUS[0]}
-
-    if [[ $ret -ne 0 && -f /tmp/fifacli_ytdlp_err ]]; then
-        local err
-        err=$(</tmp/fifacli_ytdlp_err)
-        if [[ "$err" == *"not currently live"* ]]; then
-            echo "Channel is not currently live."
-        elif [[ "$err" == *"Unable to extract"* || "$err" == *"Failed to extract"* ]]; then
-            echo "Stream extraction failed (upstream issue)."
-        elif [[ "$err" == *"HTTP Error 404"* ]]; then
-            echo "URL not found — the stream URL may have changed."
-        elif [[ "$err" == *"requires an account"* || "$err" == *"Login required"* ]]; then
-            echo "Login required — set credentials in config."
-        elif [[ "$err" == *"403"* || "$err" == *"Geoblock"* || "$err" == *"geo"* ]]; then
-            echo "Geo-blocked — this channel is not available in your region."
-        elif [[ "$err" == *"Downloading 0 items"* || "$err" == *"0 items"* ]]; then
-            echo "No live stream found on this channel."
-        fi
-        rm -f /tmp/fifacli_ytdlp_err
-    fi
-    return $ret
+    ffplay -loglevel warning -fflags nobuffer -flags low_delay -framedrop \
+        -infbuf -analyzeduration 0 -probesize 32 -volume 100 \
+        -user_agent "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36" \
+        "$url"
 }
 
-play_streamlink() {
-    local url="$1"
-    local quality="$2"
-    local player="mpv --no-terminal --geometry=50%:50% --autofit=800x450"
-    local args=(streamlink "$url" "$quality" --player "$player")
-
-    if [[ -n "${HTTP_PROXY:-}" ]]; then
-        args+=(--http-proxy "${HTTP_PROXY}")
-    fi
-
-    "${args[@]}" 2>/tmp/fifacli_slink_err
-    local ret=$?
-    if [[ $ret -ne 0 && -f /tmp/fifacli_slink_err ]]; then
-        local err
-        err=$(</tmp/fifacli_slink_err)
-        if [[ "$err" == *"requires an account"* ]]; then
-            echo "Login required — set credentials in config."
-        elif [[ "$err" == *"No playable streams"* ]]; then
-            echo "No stream available — channel may be offline."
-        fi
-        rm -f /tmp/fifacli_slink_err
-    fi
-    return $ret
+server_picker() {
+    local i pick
+    local items=()
+    for ((i=0; i<${#SERVERS[@]}; i+=2)); do
+        items+=("${SERVERS[i]}")
+    done
+    printf '%s\n' "${items[@]}" "Exit" | fzf \
+        --prompt="Select Server " \
+        --border=rounded \
+        --color="$FZF_COLORS" \
+        --height=15
 }
 
 play_scrape() {
-    local quality="${1:-${QUALITY:-best}}"
     local scrape_dir
     scrape_dir="$(dirname "$0")/scrapers"
     local venv_python="${scrape_dir}/venv/bin/python3"
     local scraper="${scrape_dir}/extract_stream.py"
-
     if [[ ! -f "$venv_python" ]] || [[ ! -f "$scraper" ]]; then
-        echo "Scraper not found. Run the setup command from the README."
+        echo "Scraper not found. Run setup from README." >&2
         return 1
     fi
-
-    local base_url="${SCRAPE_BASE_URL:-https://www.trickscorner.xyz}"
-
-    local result match_desc
-    result=$(find_matches)
-    local status
-    status=$(echo "$result" | head -1)
-    match_desc=$(echo "$result" | tail -n +2 | head -1)
-
-    if [[ "$status" == "live" && -n "$match_desc" ]]; then
-        IFS='|' read -r elapsed match_name __ __ __ <<< "$match_desc"
-        echo "Auto-detected: $match_name"
-    else
-        echo "No live match right now."
-        read -rp "Enter match name (e.g. 'Portugal vs Congo DR'): " match_name
-        [[ -z "$match_name" ]] && return 1
-    fi
-
-    local proxy_args=()
-    [[ -n "${HTTP_PROXY:-}" ]] && proxy_args=(--proxy "${HTTP_PROXY}")
-
-    echo "Searching $base_url for $match_name..."
-    local stream_url
-    stream_url=$("$venv_python" "$scraper" "$base_url" \
-        --match "$match_name" \
-        --timeout 20 \
-        "${proxy_args[@]}" 2>&1)
-
-    if [[ "$stream_url" == ERROR:* ]]; then
-        echo "$stream_url"
+    echo "Scraping for live streams..."
+    local result
+    result=$("$venv_python" "$scraper" "https://www.goatsports.xyz/p/why-is-maradonas-goal-called-hand-of.html" --timeout 25 2>&1)
+    if [[ "$result" == ERROR:* ]]; then
+        echo "$result" >&2
         return 1
     fi
-
-    echo "Stream found, launching mpv..."
-    mpv --no-terminal --geometry=50%:50% --autofit=800x450 "$stream_url"
+    echo "Found: $result"
+    play_ffplay "$result"
 }
 
 play_url() {
     local url="$1"
-    local quality="${2:-${QUALITY:-best}}"
-    local channel_type=""
     if [[ "$url" == "__scrape__" ]]; then
-        play_scrape "$quality"
+        play_scrape
         return $?
     fi
-
-    if [[ "$url" == *youtube.com* || "$url" == *youtu.be* ]]; then
-        channel_type="YouTube"
-    fi
-
-    if command -v yt-dlp &>/dev/null; then
-        play_ytdlp "$url" "$quality" && return 0
-        if [[ "$channel_type" == "YouTube" ]]; then
-            return 1
-        fi
-        echo "Trying streamlink..."
-    fi
-
-    if command -v streamlink &>/dev/null; then
-        play_streamlink "$url" "$quality" && return 0
-    fi
-
-    return 1
-}
-
-lang_picker() {
-    local langs=(
-        "Português (CazeTV)"
-        "Français (BFM)"
-        "Deutsch (ZDF)"
-        "Español (RTVE)"
-        "Stream (scrape)"
-        "Exit"
-    )
-    printf '%s\n' "${langs[@]}" | fzf \
-        --prompt="Select Language " \
-        --border=rounded \
-        --color="$FZF_COLORS" \
-        --height=10
+    play_ffplay "$url"
 }
 
 main() {
     check_deps
-    init_config
-
     while true; do
-        header
-        show_match_status
-        echo
-
         local pick
-        pick=$(lang_picker) || exit 0
-        [[ -z "$pick" ]] && exit 0
-
-        case "$pick" in
-            "Exit") exit 0 ;;
-        esac
-
-        local channel url
-        case "$pick" in
-            "Português (CazeTV)") channel="Brazil CazeTV (Portuguese)" ;;
-            "Français (BFM)")    channel="France BFM (French)" ;;
-            "Deutsch (ZDF)")     channel="Germany ZDF (German)" ;;
-            "Español (RTVE)")    channel="Spain RTVE (Spanish)" ;;
-            "Stream (scrape)") channel="Stream (scrape)" ;;
-        esac
-
-        url="${CHANNELS[$channel]}"
-        echo "Loading: $pick"
+        pick=$(server_picker) || exit 0
+        [[ -z "$pick" || "$pick" == "Exit" ]] && exit 0
+        local url idx=0
+        for ((idx=0; idx<${#SERVERS[@]}; idx+=2)); do
+            [[ "${SERVERS[idx]}" == "$pick" ]] && { url="${SERVERS[idx+1]}"; break; }
+        done
         play_url "$url"
-        echo
-        read -rp "Press Enter..."
     done
 }
 
