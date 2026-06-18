@@ -1,0 +1,5 @@
+scrapers/venv/
+scrapers/__pycache__/
+*.pyc
+__pycache__/
+/tmp/fifacli_*

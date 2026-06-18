@@ -28,12 +28,9 @@ init_config() {
         mkdir -p "$CONFIG_DIR"
         cat > "$CONFIG_FILE" <<-EOF
 QUALITY=best
-BBC_EMAIL=
-BBC_PASS=
-ITVX_EMAIL=
-ITVX_PASS=
 HTTP_PROXY=
 COOKIES_FILE=
+SCRAPE_BASE_URL=https://www.trickscorner.xyz
 EOF
         echo "Created default config at $CONFIG_FILE"
     fi
@@ -193,12 +190,11 @@ show_match_status() {
 }
 
 declare -A CHANNELS
-CHANNELS["UK BBC One (English)"]="https://www.bbc.co.uk/iplayer/live/bbcone"
-CHANNELS["UK ITV1 (English)"]="https://www.itv.com/watch/live/itv1"
 CHANNELS["Brazil CazeTV (Portuguese)"]="https://www.youtube.com/@CazeTV/live"
 CHANNELS["France BFM (French)"]="https://www.bfmtv.com/en-direct/"
 CHANNELS["Germany ZDF (German)"]="https://www.zdf.de/live-tv/zdf"
 CHANNELS["Spain RTVE (Spanish)"]="https://www.rtve.es/play/en-directo/la-1/"
+CHANNELS["Stream (scrape)"]="__scrape__"
 
 play_ytdlp() {
     local url="$1"
@@ -210,12 +206,6 @@ play_ytdlp() {
     fi
     if [[ -n "${COOKIES_FILE:-}" && -f "${COOKIES_FILE}" ]]; then
         extra_args+=(--cookies "${COOKIES_FILE}")
-    fi
-    if [[ "$url" == *bbc.co.uk* ]] && [[ -n "${BBC_EMAIL:-}" ]]; then
-        extra_args+=(--username "${BBC_EMAIL}" --password "${BBC_PASS:-}")
-    fi
-    if [[ "$url" == *itv.com* ]] && [[ -n "${ITVX_EMAIL:-}" ]]; then
-        extra_args+=(--username "${ITVX_EMAIL}" --password "${ITVX_PASS:-}")
     fi
 
     local fmt_args=()
@@ -250,9 +240,6 @@ play_streamlink() {
     local player="mpv --no-terminal --geometry=50%:50% --autofit=800x450"
     local args=(streamlink "$url" "$quality" --player "$player")
 
-    if [[ "$url" == *bbc.co.uk* ]] && [[ -n "${BBC_EMAIL:-}" ]]; then
-        args+=(--bbciplayer-username "${BBC_EMAIL}" --bbciplayer-password "${BBC_PASS:-}")
-    fi
     if [[ -n "${HTTP_PROXY:-}" ]]; then
         args+=(--http-proxy "${HTTP_PROXY}")
     fi
@@ -272,17 +259,65 @@ play_streamlink() {
     return $ret
 }
 
+play_scrape() {
+    local quality="${1:-${QUALITY:-best}}"
+    local scrape_dir
+    scrape_dir="$(dirname "$0")/scrapers"
+    local venv_python="${scrape_dir}/venv/bin/python3"
+    local scraper="${scrape_dir}/extract_stream.py"
+
+    if [[ ! -f "$venv_python" ]] || [[ ! -f "$scraper" ]]; then
+        echo "Scraper not found. Run the setup command from the README."
+        return 1
+    fi
+
+    local base_url="${SCRAPE_BASE_URL:-https://www.trickscorner.xyz}"
+
+    local result match_desc
+    result=$(find_matches)
+    local status
+    status=$(echo "$result" | head -1)
+    match_desc=$(echo "$result" | tail -n +2 | head -1)
+
+    if [[ "$status" == "live" && -n "$match_desc" ]]; then
+        IFS='|' read -r elapsed match_name __ __ __ <<< "$match_desc"
+        echo "Auto-detected: $match_name"
+    else
+        echo "No live match right now."
+        read -rp "Enter match name (e.g. 'Portugal vs Congo DR'): " match_name
+        [[ -z "$match_name" ]] && return 1
+    fi
+
+    local proxy_args=()
+    [[ -n "${HTTP_PROXY:-}" ]] && proxy_args=(--proxy "${HTTP_PROXY}")
+
+    echo "Searching $base_url for $match_name..."
+    local stream_url
+    stream_url=$("$venv_python" "$scraper" "$base_url" \
+        --match "$match_name" \
+        --timeout 20 \
+        "${proxy_args[@]}" 2>&1)
+
+    if [[ "$stream_url" == ERROR:* ]]; then
+        echo "$stream_url"
+        return 1
+    fi
+
+    echo "Stream found, launching mpv..."
+    mpv --no-terminal --geometry=50%:50% --autofit=800x450 "$stream_url"
+}
+
 play_url() {
     local url="$1"
     local quality="${2:-${QUALITY:-best}}"
     local channel_type=""
+    if [[ "$url" == "__scrape__" ]]; then
+        play_scrape "$quality"
+        return $?
+    fi
 
     if [[ "$url" == *youtube.com* || "$url" == *youtu.be* ]]; then
         channel_type="YouTube"
-    elif [[ "$url" == *bbc.co* ]]; then
-        channel_type="BBC"
-    elif [[ "$url" == *itv.com* ]]; then
-        channel_type="ITV"
     fi
 
     if command -v yt-dlp &>/dev/null; then
@@ -302,12 +337,11 @@ play_url() {
 
 lang_picker() {
     local langs=(
-        "English (BBC One)"
-        "English (ITV1)"
         "Português (CazeTV)"
         "Français (BFM)"
         "Deutsch (ZDF)"
         "Español (RTVE)"
+        "Stream (scrape)"
         "Exit"
     )
     printf '%s\n' "${langs[@]}" | fzf \
@@ -336,12 +370,11 @@ main() {
 
         local channel url
         case "$pick" in
-            "English (BBC One)") channel="UK BBC One (English)" ;;
-            "English (ITV1)")    channel="UK ITV1 (English)" ;;
             "Português (CazeTV)") channel="Brazil CazeTV (Portuguese)" ;;
             "Français (BFM)")    channel="France BFM (French)" ;;
             "Deutsch (ZDF)")     channel="Germany ZDF (German)" ;;
             "Español (RTVE)")    channel="Spain RTVE (Spanish)" ;;
+            "Stream (scrape)") channel="Stream (scrape)" ;;
         esac
 
         url="${CHANNELS[$channel]}"
